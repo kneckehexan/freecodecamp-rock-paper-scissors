@@ -1,71 +1,96 @@
-# The example function below keeps track of the opponent's history and plays whatever the opponent played two plays ago. It is not a very good player so you will need to change the code to pass the challenge.
+import itertools
+import random
 
-import numpy as np
+def create_matrix(order):
+    def create_keys(order):
+        keys = ['R', 'P', 'S']
 
-RPS_TO_INT = {
-    'R': 0,
-    'P': 1,
-    'S': 2
-}
+        for i in range((order * 2 - 1)):
+            key_len = len(keys)
+            for i in itertools.product(keys, ''.join(keys)):
+                keys.append(''.join(i))
+            keys = keys[key_len:]
+        return keys
+    
+    keys = create_keys(order)
 
-INT_TO_RPS = {v: k for k, v in RPS_TO_INT.items()}
+    matrix = {}
+    for key in keys:
+        matrix[key] = {
+            'R': {
+                'prob': 1/3,
+                'n_obs': 0
+            },
+            'P': {
+                'prob': 1/3,
+                'n_obs': 0
+            },
+            'S': {
+                'prob': 1/3,
+                'n_obs': 0
+            }
+        }
+    return matrix
 
-BEST_GUESS = {
-    'R': 'P',
-    'P': 'S',
-    'S': 'R'
-}
+def update_matrix(matrix, pair, input, decay):
+    for i in matrix[pair]:
+        matrix[pair][i]['n_obs'] = decay * matrix[pair][i]['n_obs']
+    
+    matrix[pair][input]['n_obs'] = matrix[pair][input]['n_obs'] + 1
 
-# Transistion matrix with initial values set to 1/3 for all possible outcomes
-T = np.ones((3, 3))
-T = T * 1/3
+    n_total = 0
+    for i in matrix[pair]:
+        n_total += matrix[pair][i]['n_obs']
+    
+    for i in matrix[pair]:
+        matrix[pair][i]['prob'] = matrix[pair][i]['n_obs'] / n_total
 
-def player(prev_play, opposition_play = [], player_play = []):
-    global T
-    # If no moves have been made
+def predict(matrix, pair):
+    probs = matrix[pair]
+
+    y = []
+    x = []
+    for k in probs:
+        for v in probs[k]:
+            if v == 'prob':
+                y.append(probs[k][v])
+                x.append(k)
+
+    if max(y) == min(y):
+        return random.choice(['R', 'P', 'S'])
+    else:
+        max_index = y.index(max(y))
+        return x[max_index]
+
+
+beat = {'R': 'P', 'P': 'S', 'S': 'R'}
+
+m = create_matrix(1)
+output = ""
+pair_diff1 = ""
+pair_diff2 = ""
+
+def player(prev_play):
+    global pair_diff1, pair_diff2, output, m
     if not prev_play:
-        T = reset_transistion_matrix(T)
-        prev_play = 'R'
+        reset()
+
+    input = prev_play
+
+    pair_diff2 = pair_diff1
+    pair_diff1 = output + input
+
+    if pair_diff2 != '':
+        update_matrix(m, pair_diff2, input, 0.9)
+        output = beat[predict(m, pair_diff1)]
+    else:
+        output = random.choice(['R', 'P', 'S'])
     
-    opposition_play.append(prev_play)
-    T = update_transition_matrix(convert_opposistion_play_to_int(opposition_play), T)
-    print(T)
+    return output
 
-    next_state = INT_TO_RPS[np.argmax(T[RPS_TO_INT[prev_play]])]
-
-    # Introduce Bellman's equation
-
-    guess = BEST_GUESS[next_state]
-    player_play.append(guess)
-    print('player moves:', player_play)
-    print('opposition moves:', opposition_play)
-
-    return guess
-
-
-def update_transition_matrix(data, m):
-    """
-    Function that takes a list of opposistion data containing 'R', 'P' or 'S' and converts into a transistion matrix.
-    Ref: https://stackoverflow.com/questions/46657221/generating-markov-transition-matrix-in-python/46657489
-    """
-    for (i, j) in zip(data, data[1:]):
-        m[i][j] += 1
-    
-    for row in m:
-        s = sum(row)
-        if s > 0:
-            row[:] = [f/s for f in row]
-
-    return m
-
-def reset_transistion_matrix(t):
-    t = np.ones((3, 3))
-    t = t * 1/3
-    return t
-
-def convert_opposistion_play_to_int(data):
-    data_as_int = []
-    for d in data:
-        data_as_int.append(RPS_TO_INT[d])
-    
-    return data_as_int
+def reset():
+    global m, output, pair_diff1, pair_diff2
+    m = create_matrix(1)
+    pair_diff1 = ""
+    pair_diff2 = ""
+    output = ""

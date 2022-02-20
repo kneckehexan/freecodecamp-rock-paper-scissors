@@ -1,10 +1,10 @@
 import unittest
 from RPS_game import play, mrugesh, abbey, quincy, kris
-from RPS import player
+from RPS_d import player
 
 
 class UnitTests(unittest.TestCase):
-    print()
+    #print()
 
     def test_player_vs_quincy(self):
         print("Testing game against quincy...")
